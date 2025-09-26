@@ -194,8 +194,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           </div>
         </Card>
 
-        {/* Main Menu Section */}
-
         {/* Upcoming Appointments */}
         <Card>
           <div className="flex items-center justify-between mb-6">
