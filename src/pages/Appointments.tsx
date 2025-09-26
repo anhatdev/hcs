@@ -3,7 +3,7 @@ import Layout from '../component/Layout';
 import Card from '../component/Card';
 import Button from '../component/Button';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Calendar, Clock, User, Plus, Search, Filter, CheckCircle, AlertCircle, Stethoscope, Phone, Mail, CreditCard as Edit, X, UserCheck, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Clock, User, Plus, Search, Filter, CheckCircle, AlertCircle, Stethoscope, Phone, Mail, CreditCard as Edit, X, UserCheck, ChevronLeft, ChevronRight, MapPin } from 'lucide-react';
 
 interface Appointment {
   id: string;
@@ -29,8 +29,9 @@ const Appointments: React.FC<AppointmentsProps> = ({ onNavigate }) => {
   const [statusFilter, setStatusFilter] = useState('');
   const [doctorFilter, setDoctorFilter] = useState('');
   const [selectedDate, setSelectedDate] = useState('');
-  const [showCalendar, setShowCalendar] = useState(false);
   const [currentCalendarMonth, setCurrentCalendarMonth] = useState(new Date());
+  const [selectedDayAppointments, setSelectedDayAppointments] = useState<Appointment[] | null>(null);
+  const [showDayDetail, setShowDayDetail] = useState(false);
   const [user] = useState({
     id: '1',
     name: '山田医師',
@@ -40,15 +41,6 @@ const Appointments: React.FC<AppointmentsProps> = ({ onNavigate }) => {
   // Get today's date
   const today = new Date().toISOString().split('T')[0];
   
-  // Get date 7 days from today
-  const getDatePlusDays = (days: number) => {
-    const date = new Date();
-    date.setDate(date.getDate() + days);
-    return date.toISOString().split('T')[0];
-  };
-  
-  const sevenDaysFromToday = getDatePlusDays(7);
-
   // Sample appointment data for 2025
   const [appointments, setAppointments] = useState<Appointment[]>([
     // Today's appointments
@@ -242,43 +234,12 @@ const Appointments: React.FC<AppointmentsProps> = ({ onNavigate }) => {
     }
   ]);
 
-  // Filter appointments for table (today + next 7 days only)
-  const tableAppointments = appointments.filter(appointment => {
-    const appointmentDate = appointment.date;
-    const isWithinRange = appointmentDate >= today && appointmentDate <= sevenDaysFromToday;
-    
-    const matchesSearch = appointment.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         appointment.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         appointment.doctor.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = !statusFilter || appointment.status === statusFilter;
-    const matchesDoctor = !doctorFilter || appointment.doctor === doctorFilter;
-    const matchesDate = !selectedDate || appointment.date === selectedDate;
-    
-    return isWithinRange && matchesSearch && matchesStatus && matchesDoctor && matchesDate;
-  });
-
-  // All appointments for calendar (including past and future)
-  const allAppointments = appointments;
-
   // Get today's appointments
   const todaysAppointments = appointments.filter(apt => apt.date === today);
 
-  // Group appointments by date
-  const groupedAppointments = tableAppointments.reduce((groups, appointment) => {
-    const date = appointment.date;
-    if (!groups[date]) {
-      groups[date] = [];
-    }
-    groups[date].push(appointment);
-    return groups;
-  }, {} as Record<string, Appointment[]>);
-
-  // Sort dates
-  const sortedDates = Object.keys(groupedAppointments).sort();
-
   // Get appointments count for calendar
   const getAppointmentsForDate = (date: string) => {
-    return allAppointments.filter(apt => apt.date === date);
+    return appointments.filter(apt => apt.date === date);
   };
 
   const handlePatientClick = (patientId: string) => {
@@ -309,8 +270,16 @@ const Appointments: React.FC<AppointmentsProps> = ({ onNavigate }) => {
   };
 
   const handleDateSelect = (date: string) => {
+    const dayAppointments = getAppointmentsForDate(date);
+    setSelectedDayAppointments(dayAppointments);
     setSelectedDate(date);
-    setShowCalendar(false);
+    setShowDayDetail(true);
+  };
+
+  const handleCloseDayDetail = () => {
+    setShowDayDetail(false);
+    setSelectedDayAppointments(null);
+    setSelectedDate('');
   };
 
   const getStatusIcon = (status: string) => {
@@ -354,12 +323,11 @@ const Appointments: React.FC<AppointmentsProps> = ({ onNavigate }) => {
     return date.toLocaleDateString('ja-JP', options);
   };
 
-  // Calendar component
-  const renderCalendar = () => {
+  // Large Calendar component
+  const renderLargeCalendar = () => {
     const year = currentCalendarMonth.getFullYear();
     const month = currentCalendarMonth.getMonth();
     const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
     const startDate = new Date(firstDay);
     startDate.setDate(startDate.getDate() - firstDay.getDay());
 
@@ -371,27 +339,22 @@ const Appointments: React.FC<AppointmentsProps> = ({ onNavigate }) => {
       const appointmentsForDay = getAppointmentsForDate(dateStr);
       const isCurrentMonth = current.getMonth() === month;
       const isToday = dateStr === today;
-      const isSelected = dateStr === selectedDate;
 
       days.push(
         <button
           key={dateStr}
           onClick={() => handleDateSelect(dateStr)}
-          className={`relative p-2 h-16 border border-gray-200 text-sm transition-colors ${
+          className={`relative p-3 h-20 border border-gray-200 text-sm transition-all duration-200 hover:bg-blue-50 ${
             isCurrentMonth ? 'text-gray-900' : 'text-gray-400'
           } ${
-            isToday ? 'bg-[#2E4A70] text-white font-bold' : ''
-          } ${
-            isSelected ? 'bg-[#24B0BA] text-white' : 'hover:bg-gray-100'
-          } ${
-            appointmentsForDay.length > 0 ? 'font-semibold' : ''
+            isToday ? 'bg-[#2E4A70] text-white font-bold' : 'hover:bg-blue-50'
           }`}
         >
           <div className="flex flex-col items-center justify-center h-full">
-            <span>{current.getDate()}</span>
+            <span className="text-base font-medium">{current.getDate()}</span>
             {appointmentsForDay.length > 0 && (
-              <div className={`text-xs mt-1 px-1 rounded ${
-                isToday || isSelected ? 'bg-white text-gray-800' : 'bg-[#2E4A70] text-white'
+              <div className={`text-xs mt-1 px-2 py-1 rounded-full font-medium ${
+                isToday ? 'bg-white text-[#2E4A70]' : 'bg-[#24B0BA] text-white'
               }`}>
                 {appointmentsForDay.length}件
               </div>
@@ -403,7 +366,7 @@ const Appointments: React.FC<AppointmentsProps> = ({ onNavigate }) => {
     }
 
     return (
-      <div className="bg-white border border-gray-300 rounded-lg shadow-lg p-4 absolute z-50 top-full left-0 w-96">
+      <div className="bg-white rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
           <button
             onClick={() => setCurrentCalendarMonth(new Date(year, month - 1, 1))}
@@ -411,7 +374,7 @@ const Appointments: React.FC<AppointmentsProps> = ({ onNavigate }) => {
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <h3 className="text-lg font-semibold">
+          <h3 className="text-xl font-semibold text-[#2E4A70]">
             {year}年{month + 1}月
           </h3>
           <button
@@ -422,7 +385,7 @@ const Appointments: React.FC<AppointmentsProps> = ({ onNavigate }) => {
           </button>
         </div>
         <div className="grid grid-cols-7 gap-1 mb-2">
-          {['日', '月', '火', '水', '木', '金', '土'].map(day => (
+          {['日', '月', '火', '水', '木', '金', '土'].map((day, index) => (
             <div key={day} className="text-center text-sm font-medium text-gray-600 p-2">
               {day}
             </div>
@@ -431,22 +394,131 @@ const Appointments: React.FC<AppointmentsProps> = ({ onNavigate }) => {
         <div className="grid grid-cols-7 gap-1">
           {days}
         </div>
-        <div className="mt-4 flex justify-between">
           <button
-            onClick={() => {
-              setSelectedDate('');
-              setShowCalendar(false);
-            }}
-            className="text-sm text-gray-600 hover:text-gray-800"
-          >
-            クリア
-          </button>
-          <button
-            onClick={() => setShowCalendar(false)}
+            onClick={() => setCurrentCalendarMonth(new Date())}
             className="text-sm text-[#2E4A70] hover:text-[#24B0BA]"
           >
-            閉じる
+            今月に戻る
           </button>
+      </div>
+    );
+  };
+
+  // Day Detail Modal/Popup
+  const renderDayDetail = () => {
+    if (!showDayDetail || !selectedDayAppointments) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-[#2E4A70] flex items-center">
+                <Calendar className="w-6 h-6 mr-2" />
+                {formatDate(selectedDate)}の予約
+              </h2>
+              <button
+                onClick={handleCloseDayDetail}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-6 h-6 text-gray-600" />
+              </button>
+            </div>
+
+            {selectedDayAppointments.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                <p>この日の予約はありません</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {selectedDayAppointments
+                  .sort((a, b) => a.time.localeCompare(b.time))
+                  .map((appointment) => (
+                  <div
+                    key={appointment.id}
+                    className={`border-2 rounded-lg p-4 transition-all duration-200 ${getStatusBg(appointment.status)}`}
+                  >
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3 mb-2">
+                          <div className="bg-white px-3 py-1 rounded-full text-sm font-medium text-[#2E4A70] min-w-[60px] text-center">
+                            {appointment.time}
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            {getStatusIcon(appointment.status)}
+                            <span className={`text-sm font-medium ${
+                              appointment.status === '確定' ? 'text-green-700' :
+                              appointment.status === '待機中' ? 'text-orange-700' :
+                              appointment.status === '到着済み' ? 'text-blue-700' :
+                              'text-red-700'
+                            }`}>
+                              {appointment.status}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <button
+                              onClick={() => {
+                                handleCloseDayDetail();
+                                handlePatientClick(appointment.patientId);
+                              }}
+                              className="flex items-center space-x-2 text-[#2E4A70] hover:text-[#24B0BA] transition-colors"
+                            >
+                              <User className="w-4 h-4" />
+                              <span className="font-medium">{appointment.patientName}</span>
+                            </button>
+                            <p className="text-sm text-gray-600 mt-1">ID: {appointment.patientId}</p>
+                          </div>
+
+                          <div>
+                            <div className="flex items-center space-x-2 mb-1">
+                              <Stethoscope className="w-4 h-4 text-gray-400" />
+                              <span className="font-medium text-gray-700">{appointment.doctor}</span>
+                            </div>
+                            <p className="text-sm text-gray-600">{appointment.type}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center space-x-4 mt-2 text-sm text-gray-600">
+                          <div className="flex items-center space-x-1">
+                            <Phone className="w-3 h-3" />
+                            <span>{appointment.contact}</span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <Mail className="w-3 h-3" />
+                            <span>{appointment.email}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-2 mt-4 lg:mt-0">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEditAppointment(appointment.id)}
+                        >
+                          編集
+                        </Button>
+                        {appointment.status !== 'キャンセル' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCancelAppointment(appointment.id)}
+                            className="text-red-600 border-red-300 hover:bg-red-50"
+                          >
+                            キャンセル
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -571,7 +643,7 @@ const Appointments: React.FC<AppointmentsProps> = ({ onNavigate }) => {
 
         {/* Search and Filters */}
         <Card>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Search Bar */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -582,17 +654,6 @@ const Appointments: React.FC<AppointmentsProps> = ({ onNavigate }) => {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2E4A70] focus:border-transparent"
               />
-            </div>
-
-            {/* Date Filter with Calendar */}
-            <div className="relative">
-              <button
-                onClick={() => setShowCalendar(!showCalendar)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2E4A70] focus:border-transparent text-left bg-white"
-              >
-                {selectedDate ? formatDate(selectedDate) : '日付を選択'}
-              </button>
-              {showCalendar && renderCalendar()}
             </div>
 
             {/* Status Filter */}
@@ -630,175 +691,59 @@ const Appointments: React.FC<AppointmentsProps> = ({ onNavigate }) => {
           </div>
         </Card>
 
-        {/* Appointments by Date */}
-        <div className="space-y-6">
-          <Card>
-            <h2 className="text-xl font-semibold text-[#2E4A70] mb-4">
-              今日から7日間の予約
+        {/* Large Calendar View */}
+        <Card>
+          <div className="mb-4">
+            <h2 className="text-xl font-semibold text-[#2E4A70] mb-2 flex items-center">
+              <Calendar className="w-5 h-5 mr-2" />
+              予約カレンダー
             </h2>
-            <p className="text-gray-600 text-sm mb-4">
-              過去の予約を表示するには、カレンダーから日付を選択してください
+            <p className="text-gray-600 text-sm">
+              日付をクリックして詳細な予約情報を表示
             </p>
-          </Card>
-          
-          {sortedDates.length === 0 ? (
-            <Card>
-              <div className="text-center py-8 text-gray-500">
-                <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                <p>今日から7日間に該当する予約が見つかりません</p>
-              </div>
-            </Card>
-          ) : (
-            sortedDates.map(date => (
-              <Card key={date}>
-                <div className="mb-4">
-                  <h2 className="text-xl font-semibold text-[#2E4A70] flex items-center">
-                    <Calendar className="w-5 h-5 mr-2" />
-                    {formatDate(date)}
-                    {date === today && (
-                      <span className="ml-2 px-2 py-1 bg-[#2E4A70] text-white text-sm rounded-full">
-                        本日
-                      </span>
-                    )}
-                  </h2>
-                  <p className="text-gray-600 text-sm mt-1">
-                    {groupedAppointments[date].length}件の予約
-                  </p>
-                </div>
-
-                <div className="space-y-3">
-                  {groupedAppointments[date]
-                    .sort((a, b) => a.time.localeCompare(b.time))
-                    .map((appointment) => (
-                    <div
-                      key={appointment.id}
-                      className={`border-2 rounded-lg p-4 transition-all duration-200 hover:shadow-md ${getStatusBg(appointment.status)}`}
-                    >
-                      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-3 mb-2">
-                            <div className="bg-white px-3 py-1 rounded-full text-sm font-medium text-[#2E4A70] min-w-[60px] text-center">
-                              {appointment.time}
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              {getStatusIcon(appointment.status)}
-                              <span className={`text-sm font-medium ${
-                                appointment.status === '確定' ? 'text-green-700' :
-                                appointment.status === '待機中' ? 'text-orange-700' :
-                                appointment.status === '到着済み' ? 'text-blue-700' :
-                                'text-red-700'
-                              }`}>
-                                {appointment.status}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <button
-                                onClick={() => handlePatientClick(appointment.patientId)}
-                                className="flex items-center space-x-2 text-[#2E4A70] hover:text-[#24B0BA] transition-colors"
-                              >
-                                <User className="w-4 h-4" />
-                                <span className="font-medium">{appointment.patientName}</span>
-                              </button>
-                              <p className="text-sm text-gray-600 mt-1">ID: {appointment.patientId}</p>
-                            </div>
-
-                            <div>
-                              <div className="flex items-center space-x-2 mb-1">
-                                <Stethoscope className="w-4 h-4 text-gray-400" />
-                                <span className="font-medium text-gray-700">{appointment.doctor}</span>
-                              </div>
-                              <p className="text-sm text-gray-600">{appointment.type}</p>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center space-x-4 mt-2 text-sm text-gray-600">
-                            <div className="flex items-center space-x-1">
-                              <Phone className="w-3 h-3" />
-                              <span>{appointment.contact}</span>
-                            </div>
-                            <div className="flex items-center space-x-1">
-                              <Mail className="w-3 h-3" />
-                              <span>{appointment.email}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center space-x-2 mt-4 lg:mt-0">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleEditAppointment(appointment.id)}
-                          >
-                            編集
-                          </Button>
-                          {appointment.status !== 'キャンセル' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleCancelAppointment(appointment.id)}
-                              className="text-red-600 border-red-300 hover:bg-red-50"
-                            >
-                              キャンセル
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            ))
-          )}
-        </div>
+          </div>
+          {renderLargeCalendar()}
+        </Card>
 
         {/* Summary Statistics */}
         <Card>
-          <h2 className="text-xl font-semibold text-[#2E4A70] mb-4">予約統計</h2>
-          <p className="text-sm text-gray-600 mb-4">今日から7日間の予約</p>
+          <h2 className="text-xl font-semibold text-[#2E4A70] mb-4">予約統計（全体）</h2>
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
             <div className="text-center p-4 bg-[#F0F2F2] rounded-lg">
               <div className="text-2xl font-bold text-[#2E4A70] mb-1">
-                {tableAppointments.length}
+                {appointments.length}
               </div>
               <div className="text-sm text-gray-600">総予約数</div>
             </div>
             <div className="text-center p-4 bg-green-50 rounded-lg">
               <div className="text-2xl font-bold text-green-600 mb-1">
-                {tableAppointments.filter(a => a.status === '確定').length}
+                {appointments.filter(a => a.status === '確定').length}
               </div>
               <div className="text-sm text-gray-600">確定</div>
             </div>
             <div className="text-center p-4 bg-orange-50 rounded-lg">
               <div className="text-2xl font-bold text-orange-600 mb-1">
-                {tableAppointments.filter(a => a.status === '待機中').length}
+                {appointments.filter(a => a.status === '待機中').length}
               </div>
               <div className="text-sm text-gray-600">待機中</div>
             </div>
             <div className="text-center p-4 bg-blue-50 rounded-lg">
               <div className="text-2xl font-bold text-blue-600 mb-1">
-                {tableAppointments.filter(a => a.status === '到着済み').length}
+                {appointments.filter(a => a.status === '到着済み').length}
               </div>
               <div className="text-sm text-gray-600">到着済み</div>
             </div>
             <div className="text-center p-4 bg-red-50 rounded-lg">
               <div className="text-2xl font-bold text-red-600 mb-1">
-                {tableAppointments.filter(a => a.status === 'キャンセル').length}
+                {appointments.filter(a => a.status === 'キャンセル').length}
               </div>
               <div className="text-sm text-gray-600">キャンセル</div>
             </div>
           </div>
         </Card>
 
-        {/* Overlay for calendar */}
-        {showCalendar && (
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setShowCalendar(false)}
-          />
-        )}
+        {/* Day Detail Modal */}
+        {renderDayDetail()}
       </div>
     </Layout>
   );
